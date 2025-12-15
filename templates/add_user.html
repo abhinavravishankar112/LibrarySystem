@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Users</p>
+        <h1>Register a user</h1>
+        <p class="lede">Capture a name and email so loans can be tracked later.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('list_books') }}">View books</a>
+</section>
+
+<section class="card">
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+    {% endif %}
+
+    <form method="post" class="form-grid">
+        <label>
+            Name
+            <input type="text" name="name" value="{{ form_data.name }}" required>
+        </label>
+        <label>
+            Email
+            <input type="email" name="email" value="{{ form_data.email }}" required>
+        </label>
+        <button type="submit" class="btn btn-primary">Register User</button>
+    </form>
+</section>
+{% endblock %}

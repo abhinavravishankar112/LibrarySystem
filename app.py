@@ -78,6 +78,51 @@ def add_book():
     return render_template("add_book.html", error=error, success=success, form_data=form_data)
 
 
+@app.route("/add_user", methods=["GET", "POST"])
+def add_user():
+    """Allow registering a user with straightforward validation."""
+    error = None
+    success = None
+
+    # Preserve form input so users do not need to retype after errors.
+    form_data = {
+        "name": request.form.get("name", "").strip(),
+        "email": request.form.get("email", "").strip(),
+    }
+
+    if request.method == "POST":
+        # Require both fields so user records stay complete.
+        if not all(form_data.values()):
+            error = "Name and email are required."
+
+        if error is None:
+            try:
+                with get_db_connection() as conn:
+                    conn.execute(
+                        "INSERT INTO users (name, email) VALUES (?, ?)",
+                        (form_data["name"], form_data["email"]),
+                    )
+                success = "User registered successfully."
+                form_data = {"name": "", "email": ""}
+            except sqlite3.IntegrityError:
+                # Email is UNIQUE; surface a clear message instead of a stack trace.
+                error = "A user with that email already exists."
+
+    return render_template("add_user.html", error=error, success=success, form_data=form_data)
+
+
+@app.route("/users")
+def list_users():
+    """List all registered users in a simple table."""
+    # Stable alphabetical ordering keeps the list predictable for users and tests.
+    with get_db_connection() as conn:
+        users = conn.execute(
+            "SELECT id, name, email FROM users ORDER BY name COLLATE NOCASE ASC"
+        ).fetchall()
+
+    return render_template("users.html", users=users)
+
+
 @app.route("/books")
 def list_books():
     """List all books with simple sorting options."""

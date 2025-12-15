@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Users</p>
+        <h1>Registered users</h1>
+        <p class="lede">Name and email only for now. More profile details can be added later.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('add_user') }}">Add user</a>
+</section>
+
+<section class="card">
+    {% if users %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.name }}</td>
+                    <td>{{ user.email }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">No users yet. <a href="{{ url_for('add_user') }}">Add one now</a>.</p>
+    {% endif %}
+</section>
+{% endblock %}
