@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory</p>
+        <h1>All books</h1>
+        <p class="lede">Browse everything in your catalog. Sort to spot gaps or check availability.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('add_book') }}">Add book</a>
+</section>
+
+<section class="card">
+    <div class="card-header">
+        <div class="sort-links">
+            <span>Sort by</span>
+            <a href="{{ url_for('list_books', sort='title') }}" class="{{ 'active' if sort == 'title' else '' }}">Title (A-Z)</a>
+            <a href="{{ url_for('list_books', sort='available_copies') }}" class="{{ 'active' if sort == 'available_copies' else '' }}">Availability</a>
+        </div>
+    </div>
+
+    {% if books %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>ISBN</th>
+                    <th>Total Copies</th>
+                    <th>Available</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for book in books %}
+                <tr>
+                    <td>{{ book.title }}</td>
+                    <td>{{ book.author }}</td>
+                    <td>{{ book.isbn }}</td>
+                    <td>{{ book.total_copies }}</td>
+                    <td>{{ book.available_copies }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">No books yet. <a href="{{ url_for('add_book') }}">Add one now</a>.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -2,7 +2,46 @@
 
 {% block content %}
 <section class="hero">
-    <p>Welcome to your CS50x Library System starter app.</p>
-    <p>Begin by adding features, routes, and database logic when ready.</p>
+    <div class="hero-copy">
+        <p class="eyebrow">Welcome</p>
+        <h1>Keep your library organized and ready to lend.</h1>
+        <p class="lede">Add titles, track availability, and stay on top of your CS50x project with a clean, simple workspace.</p>
+        <div class="actions">
+            <a class="btn btn-primary" href="{{ url_for('add_book') }}">Add a book</a>
+            <a class="btn btn-ghost" href="{{ url_for('list_books') }}">View all books</a>
+        </div>
+    </div>
+    <div class="hero-card card">
+        <p class="muted">Quick stats</p>
+        <div class="stat-row">
+            <div>
+                <p class="stat-label">Books</p>
+                <p class="stat-value">Live from your DB</p>
+            </div>
+            <div>
+                <p class="stat-label">Next steps</p>
+                <p class="stat-value">Add routes & auth later</p>
+            </div>
+        </div>
+        <p class="muted small">Data updates as you add books.</p>
+    </div>
+</section>
+
+<section class="grid">
+    <article class="card">
+        <h3>Lightweight forms</h3>
+        <p>Fast add flow with inline validation and clear messaging.</p>
+        <a class="link" href="{{ url_for('add_book') }}">Add a book</a>
+    </article>
+    <article class="card">
+        <h3>Sortable lists</h3>
+        <p>Review inventory and sort by title or availability in one click.</p>
+        <a class="link" href="{{ url_for('list_books', sort='available_copies') }}">Check availability</a>
+    </article>
+    <article class="card">
+        <h3>CS50x ready</h3>
+        <p>Pure Flask + SQLite, commented for clarity and easy extension.</p>
+        <a class="link" href="{{ url_for('list_books') }}">Browse books</a>
+    </article>
 </section>
 {% endblock %}

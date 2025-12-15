@@ -4,19 +4,32 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CS50x Library System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
-<body>
+<body class="page">
     <header class="site-header">
-        <h1>CS50x Library System</h1>
+        <div class="shell nav">
+            <a class="brand" href="{{ url_for('index') }}">CS50x Library</a>
+            <nav class="nav-links">
+                <a href="{{ url_for('index') }}">Home</a>
+                <a href="{{ url_for('list_books') }}">Books</a>
+                <a href="{{ url_for('add_book') }}">Add Book</a>
+            </nav>
+            <a class="btn btn-primary" href="{{ url_for('add_book') }}">New book</a>
+        </div>
     </header>
 
-    <main class="content">
+    <main class="content shell">
         {% block content %}{% endblock %}
     </main>
 
     <footer class="site-footer">
-        <p>Built with Flask for CS50x.</p>
+        <div class="shell">
+            <p>Built with Flask for CS50x.</p>
+        </div>
     </footer>
 </body>
 </html>

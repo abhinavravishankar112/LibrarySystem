@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Catalog</p>
+        <h1>Add a book</h1>
+        <p class="lede">Keep your shelf accurate. All fields are required so every entry stays complete.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('list_books') }}">View all books</a>
+</section>
+
+<section class="card">
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+    {% endif %}
+
+    <form method="post" class="form-grid">
+        <label>
+            Title
+            <input type="text" name="title" value="{{ form_data.title }}" required>
+        </label>
+        <label>
+            Author
+            <input type="text" name="author" value="{{ form_data.author }}" required>
+        </label>
+        <label>
+            ISBN
+            <input type="text" name="isbn" value="{{ form_data.isbn }}" required>
+        </label>
+        <label>
+            Total Copies
+            <input type="number" min="1" name="total_copies" value="{{ form_data.total_copies }}" required>
+        </label>
+        <button type="submit" class="btn btn-primary">Add Book</button>
+    </form>
+</section>
+{% endblock %}
