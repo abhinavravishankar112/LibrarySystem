@@ -1,0 +1,50 @@
+/* Minimal styling for the CS50x starter app. */
+:root {
+    --bg: #f9fafb;
+    --text: #1f2937;
+    --accent: #2563eb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.site-header,
+.site-footer {
+    padding: 1.5rem;
+    text-align: center;
+    background: #e5e7eb;
+}
+
+.content {
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.hero {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.hero p {
+    margin: 0 0 0.75rem 0;
+}
+
+.hero p:last-child {
+    margin: 0;
+}
+
+.hero a {
+    color: var(--accent);
+}
