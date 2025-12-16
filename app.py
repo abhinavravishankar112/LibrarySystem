@@ -1,5 +1,6 @@
 """Minimal CS50x Flask starter app."""
 import sqlite3
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from flask import Flask, render_template, request
@@ -144,6 +145,92 @@ def list_books():
         ).fetchall()
 
     return render_template("books.html", books=books, sort=sort)
+
+
+@app.route("/borrow", methods=["GET", "POST"])
+def borrow():
+    """Allow users to borrow books with inventory and duplicate checks."""
+    error = None
+    success = None
+
+    with get_db_connection() as conn:
+        # Always fetch users and available books for the form dropdowns.
+        users = conn.execute(
+            "SELECT id, name, email FROM users ORDER BY name COLLATE NOCASE ASC"
+        ).fetchall()
+
+        # Only show books that actually have copies available to borrow.
+        available_books = conn.execute(
+            """
+            SELECT id, title, author, available_copies 
+            FROM books 
+            WHERE available_copies > 0 
+            ORDER BY title COLLATE NOCASE ASC
+            """
+        ).fetchall()
+
+        if request.method == "POST":
+            user_id = request.form.get("user_id", "").strip()
+            book_id = request.form.get("book_id", "").strip()
+
+            # Both selections are required so we can record who borrowed what.
+            if not user_id or not book_id:
+                error = "Please select both a user and a book."
+            else:
+                try:
+                    user_id = int(user_id)
+                    book_id = int(book_id)
+                except ValueError:
+                    error = "Invalid user or book selection."
+
+            if error is None:
+                # Double-check that the book still has available copies (race condition guard).
+                book = conn.execute(
+                    "SELECT available_copies FROM books WHERE id = ?", (book_id,)
+                ).fetchone()
+
+                if not book or book["available_copies"] <= 0:
+                    error = "This book is no longer available."
+
+            if error is None:
+                # Prevent the same user from borrowing the same book multiple times without returning.
+                existing_loan = conn.execute(
+                    """
+                    SELECT id FROM loans 
+                    WHERE user_id = ? AND book_id = ? AND return_date IS NULL
+                    """,
+                    (user_id, book_id),
+                ).fetchone()
+
+                if existing_loan:
+                    error = "This user has already borrowed this book and not returned it yet."
+
+            if error is None:
+                # Calculate borrow and due dates (14-day loan period).
+                borrow_date = datetime.now().strftime("%Y-%m-%d")
+                due_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
+
+                # Record the loan and decrement available inventory atomically.
+                conn.execute(
+                    """
+                    INSERT INTO loans (user_id, book_id, borrow_date, due_date, return_date)
+                    VALUES (?, ?, ?, ?, NULL)
+                    """,
+                    (user_id, book_id, borrow_date, due_date),
+                )
+                conn.execute(
+                    "UPDATE books SET available_copies = available_copies - 1 WHERE id = ?",
+                    (book_id,),
+                )
+                success = "Book borrowed successfully. Due date: " + due_date
+
+    return render_template(
+        "borrow.html",
+        users=users,
+        available_books=available_books,
+        error=error,
+        success=success,
+    )
 
 
 if __name__ == "__main__":

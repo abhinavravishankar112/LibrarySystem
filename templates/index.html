@@ -48,5 +48,10 @@
         <p>See everyone registered so far with quick access to add more.</p>
         <a class="link" href="{{ url_for('list_users') }}">View users</a>
     </article>
+    <article class="card">
+        <h3>Borrow & track</h3>
+        <p>Check out books to users with automatic due dates and inventory updates.</p>
+        <a class="link" href="{{ url_for('borrow') }}">Borrow a book</a>
+    </article>
 </section>
 {% endblock %}

@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Transactions</p>
+        <h1>Borrow a book</h1>
+        <p class="lede">Select a user and an available book. The loan period is 14 days.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('list_books') }}">View all books</a>
+</section>
+
+<section class="card">
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+    {% endif %}
+
+    {% if not users %}
+    <p class="muted">No users registered yet. <a href="{{ url_for('add_user') }}">Add a user</a> first.</p>
+    {% elif not available_books %}
+    <p class="muted">No books available to borrow. <a href="{{ url_for('add_book') }}">Add more books</a> or wait for returns.</p>
+    {% else %}
+    <form method="post" class="form-grid">
+        <label>
+            User
+            <select name="user_id" required>
+                <option value="">-- Select a user --</option>
+                {% for user in users %}
+                <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Book
+            <select name="book_id" required>
+                <option value="">-- Select a book --</option>
+                {% for book in available_books %}
+                <option value="{{ book.id }}">{{ book.title }} by {{ book.author }} ({{ book.available_copies }} available)</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn btn-primary">Borrow Book</button>
+    </form>
+    {% endif %}
+</section>
+{% endblock %}

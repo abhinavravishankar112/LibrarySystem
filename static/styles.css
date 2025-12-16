@@ -223,7 +223,18 @@ a {
     color: var(--text);
 }
 
-.form-grid input:focus {
+.form-grid select {
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 1rem;
+    background: #0f172a;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.form-grid input:focus,
+.form-grid select:focus {
     outline: 2px solid rgba(124, 58, 237, 0.35);
 }
 
