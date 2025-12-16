@@ -1,6 +1,7 @@
-"""Minimal CS50x Flask starter app."""
+"""Library Management System built with Flask and SQLite."""
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from typing import Optional
 from pathlib import Path
 
 from flask import Flask, render_template, request
@@ -31,13 +32,13 @@ def get_db_connection():
 # --- Query helpers (single responsibility, reused across routes) ---
 
 
-def calculate_fine(due_date_str: str, today: datetime.date | None = None) -> tuple[int, int]:
+def calculate_fine(due_date_str: str, today: Optional[date] = None) -> tuple[int, int]:
     """Return (days_late, fine_amount) based on due date and the given date.
 
     Fines are derived data; we compute them on the fly so the database keeps only
     canonical dates (borrow/due/return) and no duplicated monetary values.
     """
-    today = today or datetime.now().date()
+    today = today or date.today()
     due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
     days_late = max((today - due_date).days, 0)
     fine_amount = days_late * FINE_RATE
@@ -91,7 +92,7 @@ def get_books(conn, sort: str, search: str) -> tuple[list[sqlite3.Row], str]:
     return books, sort
 
 
-def get_active_loans(conn, today: datetime.date) -> list[dict]:
+def get_active_loans(conn, today: date) -> list[dict]:
     """Return active loans joined with user/book info, plus live fine data."""
     rows = conn.execute(
         """
@@ -133,7 +134,7 @@ def index():
 
 @app.route("/add_book", methods=["GET", "POST"])
 def add_book():
-    """Allow adding a book with simple CS50-style validation."""
+    """Allow adding a book with simple validation and clear errors."""
     error = None
     success = None
 

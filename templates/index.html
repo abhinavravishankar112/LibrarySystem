@@ -5,7 +5,7 @@
     <div class="hero-copy">
         <p class="eyebrow">Welcome</p>
         <h1>Keep your library organized and ready to lend.</h1>
-        <p class="lede">Add titles, track availability, and stay on top of your CS50x project with a clean, simple workspace.</p>
+        <p class="lede">Add titles, track availability, and manage circulation with a clean, simple workspace.</p>
         <div class="actions">
             <a class="btn btn-primary" href="{{ url_for('add_book') }}">Add a book</a>
             <a class="btn btn-ghost" href="{{ url_for('list_books') }}">View all books</a>
@@ -39,8 +39,8 @@
         <a class="link" href="{{ url_for('list_books', sort='available_copies') }}">Check availability</a>
     </article>
     <article class="card">
-        <h3>CS50x ready</h3>
-        <p>Pure Flask + SQLite, commented for clarity and easy extension.</p>
+        <h3>Simple & extensible</h3>
+        <p>Pure Flask + SQLite foundation that’s easy to maintain and extend.</p>
         <a class="link" href="{{ url_for('add_user') }}">Register a user</a>
     </article>
     <article class="card">
