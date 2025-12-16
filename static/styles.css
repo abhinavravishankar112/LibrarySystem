@@ -238,6 +238,11 @@ a {
     outline: 2px solid rgba(124, 58, 237, 0.35);
 }
 
+.form-grid select option {
+    background: #0f172a;
+    color: var(--text);
+}
+
 .alert {
     padding: 0.75rem 1rem;
     border-radius: 10px;

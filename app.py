@@ -8,6 +8,8 @@ from flask import Flask, render_template, request
 
 # SQLite database file path (local file, no extra services needed).
 DB_PATH = Path("library.db")
+# Flat daily fine rate (₹) applied only when a book is returned after the due date.
+FINE_RATE = 5
 
 app = Flask(__name__)
 
@@ -145,6 +147,106 @@ def list_books():
         ).fetchall()
 
     return render_template("books.html", books=books, sort=sort)
+
+
+@app.route("/return", methods=["GET", "POST"])
+def return_book():
+    """Handle book returns and compute any late fines."""
+    error = None
+    success = None
+    today = datetime.now().date()
+
+    def calculate_fine(due_date_str: str) -> tuple[int, int]:
+        """Return (days_late, fine_amount) based on due date and today's date."""
+        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+        days_late = max((today - due_date).days, 0)
+        fine_amount = days_late * FINE_RATE
+        return days_late, fine_amount
+
+    with get_db_connection() as conn:
+        def fetch_active_loans():
+            # Only include active loans (not yet returned) so users cannot return twice.
+            rows = conn.execute(
+                """
+                SELECT loans.id, loans.book_id, loans.due_date, loans.borrow_date,
+                       users.name AS user_name, users.email AS user_email,
+                       books.title AS book_title
+                FROM loans
+                JOIN users ON loans.user_id = users.id
+                JOIN books ON loans.book_id = books.id
+                WHERE loans.return_date IS NULL
+                ORDER BY loans.due_date ASC
+                """
+            ).fetchall()
+
+            enriched = []
+            for row in rows:
+                days_late, fine_amount = calculate_fine(row["due_date"])
+                enriched.append(
+                    {
+                        "id": row["id"],
+                        "book_id": row["book_id"],
+                        "book_title": row["book_title"],
+                        "user_name": row["user_name"],
+                        "user_email": row["user_email"],
+                        "due_date": row["due_date"],
+                        "days_late": days_late,
+                        "fine": fine_amount,
+                    }
+                )
+            return enriched
+
+        active_loans = fetch_active_loans()
+
+        if request.method == "POST":
+            loan_id_raw = request.form.get("loan_id", "").strip()
+
+            if not loan_id_raw:
+                error = "Please select a loan to return."
+            else:
+                try:
+                    loan_id = int(loan_id_raw)
+                except ValueError:
+                    error = "Invalid loan selection."
+
+            if error is None:
+                # Ensure the loan is still active before updating anything.
+                loan_row = conn.execute(
+                    "SELECT id, book_id, due_date FROM loans WHERE id = ? AND return_date IS NULL",
+                    (loan_id,),
+                ).fetchone()
+
+                if not loan_row:
+                    error = "That loan is not active or does not exist."
+
+            if error is None:
+                # Compute fine at return time; do not store it in the database.
+                days_late, fine_amount = calculate_fine(loan_row["due_date"])
+
+                conn.execute(
+                    "UPDATE loans SET return_date = ? WHERE id = ?",
+                    (today.strftime("%Y-%m-%d"), loan_id),
+                )
+                conn.execute(
+                    "UPDATE books SET available_copies = available_copies + 1 WHERE id = ?",
+                    (loan_row["book_id"],),
+                )
+
+                if fine_amount > 0:
+                    success = f"Book returned. Fine due: ₹{fine_amount} ({days_late} days late)."
+                else:
+                    success = "Book returned. No fine due."
+
+                # Refresh active loans list after the return.
+                active_loans = fetch_active_loans()
+
+    return render_template(
+        "return.html",
+        active_loans=active_loans,
+        error=error,
+        success=success,
+        fine_rate=FINE_RATE,
+    )
 
 
 @app.route("/borrow", methods=["GET", "POST"])
