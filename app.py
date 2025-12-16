@@ -11,6 +11,13 @@ DB_PATH = Path("library.db")
 # Flat daily fine rate (₹) applied only when a book is returned after the due date.
 FINE_RATE = 5
 
+# Three tables keep concerns separate: books (inventory counts), users (patrons),
+# loans (history + active checkouts). This keeps audit history while supporting lookups.
+# available_copies is stored so we can adjust inventory quickly without recomputing
+# counts from loan history on every page load.
+# Fines are calculated dynamically at read time to avoid persisting values that depend
+# on the current date; only due_date and return_date are stored.
+
 app = Flask(__name__)
 
 
@@ -19,6 +26,103 @@ def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+# --- Query helpers (single responsibility, reused across routes) ---
+
+
+def calculate_fine(due_date_str: str, today: datetime.date | None = None) -> tuple[int, int]:
+    """Return (days_late, fine_amount) based on due date and the given date.
+
+    Fines are derived data; we compute them on the fly so the database keeps only
+    canonical dates (borrow/due/return) and no duplicated monetary values.
+    """
+    today = today or datetime.now().date()
+    due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+    days_late = max((today - due_date).days, 0)
+    fine_amount = days_late * FINE_RATE
+    return days_late, fine_amount
+
+
+def get_all_users(conn) -> list[sqlite3.Row]:
+    """Return all users ordered alphabetically for predictable dropdowns/tables."""
+    return conn.execute(
+        "SELECT id, name, email FROM users ORDER BY name COLLATE NOCASE ASC"
+    ).fetchall()
+
+
+def get_available_books(conn) -> list[sqlite3.Row]:
+    """Return only books that have copies available to borrow."""
+    return conn.execute(
+        """
+        SELECT id, title, author, available_copies
+        FROM books
+        WHERE available_copies > 0
+        ORDER BY title COLLATE NOCASE ASC
+        """
+    ).fetchall()
+
+
+def get_books(conn, sort: str, search: str) -> tuple[list[sqlite3.Row], str]:
+    """Return books with optional search and whitelisted sorting.
+
+    Sorting is limited to known columns to avoid SQL injection. Search uses LIKE on
+    title and author with bound parameters for safety.
+    """
+    order_by_options = {
+        "title": "title COLLATE NOCASE ASC",
+        "available_copies": "available_copies DESC, title COLLATE NOCASE ASC",
+    }
+
+    order_by = order_by_options.get(sort, order_by_options["title"])
+    if sort not in order_by_options:
+        sort = "title"  # Keep template state in sync with the default.
+
+    query = "SELECT id, title, author, isbn, total_copies, available_copies FROM books"
+    params: list[str] = []
+    if search:
+        query += " WHERE LOWER(title) LIKE LOWER(?) OR LOWER(author) LIKE LOWER(?)"
+        pattern = f"%{search}%"
+        params.extend([pattern, pattern])
+
+    query += f" ORDER BY {order_by}"
+
+    books = conn.execute(query, params).fetchall()
+    return books, sort
+
+
+def get_active_loans(conn, today: datetime.date) -> list[dict]:
+    """Return active loans joined with user/book info, plus live fine data."""
+    rows = conn.execute(
+        """
+        SELECT loans.id, loans.book_id, loans.borrow_date, loans.due_date,
+               users.name AS user_name, users.email AS user_email,
+               books.title AS book_title
+        FROM loans
+        JOIN users ON loans.user_id = users.id
+        JOIN books ON loans.book_id = books.id
+        WHERE loans.return_date IS NULL
+        ORDER BY loans.due_date ASC
+        """
+    ).fetchall()
+
+    active = []
+    for row in rows:
+        days_late, fine_amount = calculate_fine(row["due_date"], today)
+        active.append(
+            {
+                "id": row["id"],
+                "book_id": row["book_id"],
+                "book_title": row["book_title"],
+                "user_name": row["user_name"],
+                "user_email": row["user_email"],
+                "borrow_date": row["borrow_date"],
+                "due_date": row["due_date"],
+                "days_late": days_late,
+                "fine": fine_amount,
+            }
+        )
+    return active
 
 
 @app.route("/")
@@ -119,9 +223,7 @@ def list_users():
     """List all registered users in a simple table."""
     # Stable alphabetical ordering keeps the list predictable for users and tests.
     with get_db_connection() as conn:
-        users = conn.execute(
-            "SELECT id, name, email FROM users ORDER BY name COLLATE NOCASE ASC"
-        ).fetchall()
+        users = get_all_users(conn)
 
     return render_template("users.html", users=users)
 
@@ -129,32 +231,11 @@ def list_users():
 @app.route("/books")
 def list_books():
     """List all books with simple sorting options."""
-    # Whitelist sort options to keep SQL predictable and safe.
     sort = request.args.get("sort", "title")
     search = request.args.get("search", "").strip()
-    order_by_options = {
-        "title": "title COLLATE NOCASE ASC",
-        # When sorting by availability, put the most available first.
-        "available_copies": "available_copies DESC, title COLLATE NOCASE ASC",
-    }
-
-    order_by = order_by_options.get(sort, order_by_options["title"])
-    if sort not in order_by_options:
-        sort = "title"  # Keep template state in sync with the default.
-
-    # Optional case-insensitive search on title or author using LIKE.
-    # We use parameter binding to avoid interpolation and keep things safe.
-    query = "SELECT id, title, author, isbn, total_copies, available_copies FROM books"
-    params = []
-    if search:
-        query += " WHERE LOWER(title) LIKE LOWER(?) OR LOWER(author) LIKE LOWER(?)"
-        pattern = f"%{search}%"
-        params.extend([pattern, pattern])
-
-    query += f" ORDER BY {order_by}"
 
     with get_db_connection() as conn:
-        books = conn.execute(query, params).fetchall()
+        books, sort = get_books(conn, sort, search)
 
     return render_template("books.html", books=books, sort=sort, search=search)
 
@@ -166,47 +247,9 @@ def return_book():
     success = None
     today = datetime.now().date()
 
-    def calculate_fine(due_date_str: str) -> tuple[int, int]:
-        """Return (days_late, fine_amount) based on due date and today's date."""
-        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
-        days_late = max((today - due_date).days, 0)
-        fine_amount = days_late * FINE_RATE
-        return days_late, fine_amount
-
     with get_db_connection() as conn:
-        def fetch_active_loans():
-            # Only include active loans (not yet returned) so users cannot return twice.
-            rows = conn.execute(
-                """
-                SELECT loans.id, loans.book_id, loans.due_date, loans.borrow_date,
-                       users.name AS user_name, users.email AS user_email,
-                       books.title AS book_title
-                FROM loans
-                JOIN users ON loans.user_id = users.id
-                JOIN books ON loans.book_id = books.id
-                WHERE loans.return_date IS NULL
-                ORDER BY loans.due_date ASC
-                """
-            ).fetchall()
-
-            enriched = []
-            for row in rows:
-                days_late, fine_amount = calculate_fine(row["due_date"])
-                enriched.append(
-                    {
-                        "id": row["id"],
-                        "book_id": row["book_id"],
-                        "book_title": row["book_title"],
-                        "user_name": row["user_name"],
-                        "user_email": row["user_email"],
-                        "due_date": row["due_date"],
-                        "days_late": days_late,
-                        "fine": fine_amount,
-                    }
-                )
-            return enriched
-
-        active_loans = fetch_active_loans()
+        # Only include active loans (not yet returned) so users cannot return twice.
+        active_loans = get_active_loans(conn, today)
 
         if request.method == "POST":
             loan_id_raw = request.form.get("loan_id", "").strip()
@@ -231,7 +274,7 @@ def return_book():
 
             if error is None:
                 # Compute fine at return time; do not store it in the database.
-                days_late, fine_amount = calculate_fine(loan_row["due_date"])
+                days_late, fine_amount = calculate_fine(loan_row["due_date"], today)
 
                 conn.execute(
                     "UPDATE loans SET return_date = ? WHERE id = ?",
@@ -248,7 +291,7 @@ def return_book():
                     success = "Book returned. No fine due."
 
                 # Refresh active loans list after the return.
-                active_loans = fetch_active_loans()
+                active_loans = get_active_loans(conn, today)
 
     return render_template(
         "return.html",
@@ -264,41 +307,8 @@ def list_loans():
     """Show all active loans with live fine calculation and joined details."""
     today = datetime.now().date()
 
-    def calculate_fine(due_date_str: str) -> tuple[int, int]:
-        """Return (days_late, fine_amount) based on due date and today's date."""
-        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
-        days_late = max((today - due_date).days, 0)
-        fine_amount = days_late * FINE_RATE
-        return days_late, fine_amount
-
     with get_db_connection() as conn:
-        # Join loans to users and books to display human-friendly info alongside loan dates.
-        rows = conn.execute(
-            """
-            SELECT loans.id, loans.borrow_date, loans.due_date, loans.return_date,
-                   users.name AS user_name, books.title AS book_title
-            FROM loans
-            JOIN users ON loans.user_id = users.id
-            JOIN books ON loans.book_id = books.id
-            WHERE loans.return_date IS NULL
-            ORDER BY loans.due_date ASC
-            """
-        ).fetchall()
-
-    loans = []
-    for row in rows:
-        days_late, fine_amount = calculate_fine(row["due_date"])
-        loans.append(
-            {
-                "id": row["id"],
-                "user_name": row["user_name"],
-                "book_title": row["book_title"],
-                "borrow_date": row["borrow_date"],
-                "due_date": row["due_date"],
-                "days_late": days_late,
-                "fine": fine_amount,
-            }
-        )
+        loans = get_active_loans(conn, today)
 
     return render_template("loans.html", loans=loans, fine_rate=FINE_RATE)
 
@@ -311,19 +321,8 @@ def borrow():
 
     with get_db_connection() as conn:
         # Always fetch users and available books for the form dropdowns.
-        users = conn.execute(
-            "SELECT id, name, email FROM users ORDER BY name COLLATE NOCASE ASC"
-        ).fetchall()
-
-        # Only show books that actually have copies available to borrow.
-        available_books = conn.execute(
-            """
-            SELECT id, title, author, available_copies 
-            FROM books 
-            WHERE available_copies > 0 
-            ORDER BY title COLLATE NOCASE ASC
-            """
-        ).fetchall()
+        users = get_all_users(conn)
+        available_books = get_available_books(conn)
 
         if request.method == "POST":
             user_id = request.form.get("user_id", "").strip()
