@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Loans</p>
+        <h1>Active loans</h1>
+        <p class="lede">Sorted by due date. Fine: ₹{{ fine_rate }} per day after the due date.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('borrow') }}">Borrow a book</a>
+</section>
+
+<section class="card">
+    {% if loans %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Book</th>
+                    <th>Borrowed</th>
+                    <th>Due</th>
+                    <th>Fine</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loan in loans %}
+                <tr>
+                    <td>{{ loan.user_name }}</td>
+                    <td>{{ loan.book_title }}</td>
+                    <td>{{ loan.borrow_date }}</td>
+                    <td>
+                        {{ loan.due_date }}
+                        {% if loan.days_late > 0 %}
+                        <span class="muted">(overdue)</span>
+                        {% endif %}
+                    </td>
+                    <td>₹{{ loan.fine }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">No active loans right now.</p>
+    {% endif %}
+</section>
+{% endblock %}

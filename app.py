@@ -131,6 +131,7 @@ def list_books():
     """List all books with simple sorting options."""
     # Whitelist sort options to keep SQL predictable and safe.
     sort = request.args.get("sort", "title")
+    search = request.args.get("search", "").strip()
     order_by_options = {
         "title": "title COLLATE NOCASE ASC",
         # When sorting by availability, put the most available first.
@@ -141,12 +142,21 @@ def list_books():
     if sort not in order_by_options:
         sort = "title"  # Keep template state in sync with the default.
 
-    with get_db_connection() as conn:
-        books = conn.execute(
-            f"SELECT id, title, author, isbn, total_copies, available_copies FROM books ORDER BY {order_by}"
-        ).fetchall()
+    # Optional case-insensitive search on title or author using LIKE.
+    # We use parameter binding to avoid interpolation and keep things safe.
+    query = "SELECT id, title, author, isbn, total_copies, available_copies FROM books"
+    params = []
+    if search:
+        query += " WHERE LOWER(title) LIKE LOWER(?) OR LOWER(author) LIKE LOWER(?)"
+        pattern = f"%{search}%"
+        params.extend([pattern, pattern])
 
-    return render_template("books.html", books=books, sort=sort)
+    query += f" ORDER BY {order_by}"
+
+    with get_db_connection() as conn:
+        books = conn.execute(query, params).fetchall()
+
+    return render_template("books.html", books=books, sort=sort, search=search)
 
 
 @app.route("/return", methods=["GET", "POST"])
@@ -247,6 +257,50 @@ def return_book():
         success=success,
         fine_rate=FINE_RATE,
     )
+
+
+@app.route("/loans")
+def list_loans():
+    """Show all active loans with live fine calculation and joined details."""
+    today = datetime.now().date()
+
+    def calculate_fine(due_date_str: str) -> tuple[int, int]:
+        """Return (days_late, fine_amount) based on due date and today's date."""
+        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+        days_late = max((today - due_date).days, 0)
+        fine_amount = days_late * FINE_RATE
+        return days_late, fine_amount
+
+    with get_db_connection() as conn:
+        # Join loans to users and books to display human-friendly info alongside loan dates.
+        rows = conn.execute(
+            """
+            SELECT loans.id, loans.borrow_date, loans.due_date, loans.return_date,
+                   users.name AS user_name, books.title AS book_title
+            FROM loans
+            JOIN users ON loans.user_id = users.id
+            JOIN books ON loans.book_id = books.id
+            WHERE loans.return_date IS NULL
+            ORDER BY loans.due_date ASC
+            """
+        ).fetchall()
+
+    loans = []
+    for row in rows:
+        days_late, fine_amount = calculate_fine(row["due_date"])
+        loans.append(
+            {
+                "id": row["id"],
+                "user_name": row["user_name"],
+                "book_title": row["book_title"],
+                "borrow_date": row["borrow_date"],
+                "due_date": row["due_date"],
+                "days_late": days_late,
+                "fine": fine_amount,
+            }
+        )
+
+    return render_template("loans.html", loans=loans, fine_rate=FINE_RATE)
 
 
 @app.route("/borrow", methods=["GET", "POST"])

@@ -318,6 +318,21 @@ a {
     background: rgba(255, 255, 255, 0.02);
 }
 
+.search-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-form input[type="text"] {
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #0f172a;
+    color: var(--text);
+}
+
 .stat-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

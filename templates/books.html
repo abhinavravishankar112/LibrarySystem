@@ -12,10 +12,15 @@
 
 <section class="card">
     <div class="card-header">
+        <form method="get" class="search-form">
+            <input type="text" name="search" placeholder="Search title or author" value="{{ search }}">
+            <input type="hidden" name="sort" value="{{ sort }}">
+            <button type="submit" class="btn btn-ghost">Search</button>
+        </form>
         <div class="sort-links">
             <span>Sort by</span>
-            <a href="{{ url_for('list_books', sort='title') }}" class="{{ 'active' if sort == 'title' else '' }}">Title (A-Z)</a>
-            <a href="{{ url_for('list_books', sort='available_copies') }}" class="{{ 'active' if sort == 'available_copies' else '' }}">Availability</a>
+            <a href="{{ url_for('list_books', sort='title', search=search) }}" class="{{ 'active' if sort == 'title' else '' }}">Title (A-Z)</a>
+            <a href="{{ url_for('list_books', sort='available_copies', search=search) }}" class="{{ 'active' if sort == 'available_copies' else '' }}">Availability</a>
         </div>
     </div>
 
